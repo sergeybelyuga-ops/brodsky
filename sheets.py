@@ -127,5 +127,7 @@ def get_top_books(count=5):
     """Get top books by votes"""
     books = get_all_books()
     books.sort(key=lambda x: int(x.get('Votes', '') or 0), reverse=True)
-    return books[:count]
+    not_completed_books = [b for b in books if b.get('Status') != "Completed"]
+ 
+    return not_completed_books[:count]
 
