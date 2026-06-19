@@ -22,24 +22,21 @@ def get_all_books():
     """Get all books from the sheet"""
     return sheet().get_all_records()
 
-def get_unread_books(count=5):
-    """Select random unread books (Votes == 0 or empty)"""
+def get_unread_books(count):
+    """Select random unread books for the poll, prioritizing books that have not been voted in the current cycle."""
     books = get_all_books()
-    unread = [b for b in books if not b.get('Votes') or b.get('Votes') == '' or int(b.get('Votes', '') or 0) == 0]
+    current_cycle = min((int(b.get('Cycles', 0) or 0) for b in books), default=0)
+    not_completed_books = [b for b in books if b.get('Status') != "Completed"]
+    not_voted_books = [b for b in not_completed_books if int(b.get('Cycles', 0) or 0) <= current_cycle]
     
-    if len(unread) < count:
-        # If not enough unread, reset all and try again
-        reset_cycle()
-        unread = get_all_books()
-    
-    return random.sample(unread, min(count, len(unread)))
+    if current_cycle == 0:
+        # If it's the first cycle, allow all unread books
+        return random.sample(not_voted_books, min(count, len(not_voted_books)))
+    else:
+        # For subsequent cycles, sorting books by rating and return the top ones that haven't been voted yet
+        not_voted_books.sort(key=lambda x: int(x.get('Votes', 0) or 0), reverse=True)
+        return not_voted_books[:count]
 
-def reset_cycle():
-    """Reset CycleUsed when all books have been voted"""
-    ws = sheet()
-    all_records = ws.get_all_records()
-    for idx, book in enumerate(all_records, start=2):
-        ws.update_cell(idx, ws.find('CycleUsed').col, '')
 
 def get_book_by_title(title):
     """Get book row by title"""
@@ -89,6 +86,7 @@ def update_votes(title, votes):
         
         # Update the cell
         ws.update_cell(row_idx, votes_col.col, str(new_votes))
+        mark_book_as_used(title)  # Mark the book as used in the current cycle
         logger.info(f"✅ Updated {title}: {current_votes} + {votes} = {new_votes} votes")
         return True
         
@@ -105,12 +103,19 @@ def mark_book_as_used(title):
             logger.error(f"❌ Book '{title}' not found for marking as used")
             return False
         
-        cycle_col = ws.find('CycleUsed')
+        cycle_col = ws.find('Cycles')
         if not cycle_col:
-            logger.error("❌ 'CycleUsed' column not found in spreadsheet")
+            logger.error("❌ 'Cycles' column not found in spreadsheet")
             return False
         
-        ws.update_cell(row_idx, cycle_col.col, 'Yes')
+        cycle_cell = ws.cell(row_idx, cycle_col.col)
+
+        current_cycle = int(cycle_cell.value or 0) if cycle_cell.value and str(cycle_cell.value).strip() != '' else 0
+        new_cycle = current_cycle + 1
+
+        # Update the cell
+        ws.update_cell(row_idx, cycle_col.col, str(new_cycle))
+
         logger.info(f"✅ Marked {title} as used in current cycle")
         return True
         

@@ -1,167 +1,253 @@
 # 📚 Brodsky Book Club Bot
 
-A Telegram bot for collaborative book voting using Google Sheets.
+A Telegram bot for collaborative book voting powered by Google Sheets.
 
 ## Features
 
-✨ **Smart Book Selection**
-- Randomly selects 5 unread books from your Google Sheets
-- Tracks which books have been voted on
-- Automatically restarts cycle when all books are used
-- Prioritizes previously voted books in new cycles
+### ✨ Book Voting
 
-🗳️ **Advanced Voting**
-- Creates 24-hour Telegram polls
-- Multiple-choice voting (members can vote for multiple books)
-- See who voted for what
-- Re-voting allowed
-- Automatic vote collection after 24 hours
+* Randomly selects 5 unread books from your Google Sheet
+* Tracks which books have already participated in a voting cycle
+* Starts a new voting cycle once all books have been included at least once
 
-📊 **Vote Management**
-- Accumulates votes across cycles
-- Updates Google Sheets in real-time
-- Shows top 5 books by votes
-- Persistent vote tracking
+### ✨ Advanced Voting Rounds
+
+To better identify the books that interest readers the most, the second and subsequent voting rounds follow different rules:
+
+* Books with the highest vote counts are prioritized
+* Each user can vote for only one book per poll
+* Vote totals accumulate across multiple voting cycles
+
+### ✨ Helps Choose the Next Book to Read
+
+* Displays the Top 5 highest-ranked books
+* Completed books can be marked as **Completed** in Google Sheets and excluded from future voting
+
+---
 
 ## Setup
 
 ### 1. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 2. Configure Google Sheets API
-1. Create a Google Cloud project
-2. Enable Google Sheets API
-3. Create a service account and download JSON credentials
-4. Share your Google Sheet with the service account email
-5. Save the JSON file as `brodsky-498313-541be19ee54f.json`
 
-### 3. Set Environment Variables (.env)
+1. Create a Google Cloud project
+2. Enable the Google Sheets API
+3. Create a Service Account
+4. Download the JSON credentials file
+5. Share your Google Sheet with the Service Account email address
+6. Save the credentials file as:
+
+```text
+brodsky-498313-541be19ee54f.json
 ```
+
+### 3. Configure Environment Variables
+
+Create a `.env` file:
+
+```env
 BOT_TOKEN=your_telegram_bot_token
 CHAT_ID=your_telegram_chat_id
 SPREADSHEET_ID=your_google_sheet_id
 GOOGLE_CREDS_FILE=brodsky-498313-541be19ee54f.json
 ```
 
-### 4. Prepare Google Sheet
+### 4. Prepare the Google Sheet
+
 Required columns:
-- **Title** - Book title
-- **Author** - Author name
-- **Description** - Book description
-- **Genre** - Genre
-- **Pages** - Number of pages
-- **Votes** - Vote count (starts at 0)
-- **CycleUsed** - Internal tracking (leave empty)
+
+* **Title** — Book title
+* **Author** — Author name
+* **Description** — Short book description
+* **Genre** — Book genre
+* **Pages** — Number of pages
+* **Votes** — Total vote count (starts at 0)
+* **CycleUsed** — Internal cycle tracking (leave empty)
+* **Status** — Optional status (e.g., Completed)
 
 Example:
-| Title | Author | Description | Genre | Pages | Votes | CycleUsed |
-|-------|--------|-------------|-------|-------|-------|-----------|
-| 1984 | George Orwell | Dystopian novel | Sci-Fi | 328 | 0 | |
+
+| Title | Author        | Description     | Genre  | Pages | Votes | CycleUsed | Status |
+| ----- | ------------- | --------------- | ------ | ----- | ----- | --------- | ------ |
+| 1984  | George Orwell | Dystopian novel | Sci-Fi | 328   | 0     | 0         |        |
+
+---
 
 ## Usage
 
-### Commands
+### Available Commands
 
-**`/start`** - Show welcome message and available commands
+### `/start`
 
-**`/voting`** - Create a new 24-hour poll
-- Selects 5 random unread books
-- Creates Telegram poll
-- Automatically collects votes after 24 hours
-- Updates Google Sheet with results
+Displays a welcome message and available commands.
 
-**`/top`** - Show top 5 books by votes
-- Displays ranking with vote counts
-- Updated in real-time
+### `/voting`
 
-**`/help`** - Show help message
+Creates a new time-limited poll.
+
+What happens:
+
+* Selects 5 eligible books
+* Creates a Telegram poll
+* Tracks voting progress
+* Automatically processes results when the poll expires
+* Updates vote counts in Google Sheets
+
+### `/top`
+
+Displays the 5 highest-ranked books based on accumulated votes.
+
+### `/help`
+
+Displays help information and command descriptions.
+
+---
 
 ## How It Works
 
-1. **Poll Creation** (`/voting`)
-   - Bot selects 5 random unread books
-   - Creates a Telegram poll with 24-hour duration
-   - Allows multiple selections
+### 1. Poll Creation (`/voting`)
 
-2. **Vote Collection** (automatic after 24 hours)
-   - Bot retrieves poll results
-   - Updates Google Sheet with vote counts
-   - Marks books as used in current cycle
+The bot:
 
-3. **Cycle Management**
-   - When all books have been voted, cycle restarts
-   - Previously voted books get prioritized based on votes
-   - Vote counts accumulate across cycles
+* Selects 5 books from the spreadsheet
+* Creates a Telegram poll with a 24-hour duration
+* Allows users to vote
 
-4. **Ranking** (`/top`)
-   - Shows top 5 books sorted by total votes
-   - Updates as new votes are collected
+### 2. Vote Collection
+
+After the poll expires:
+
+* The bot retrieves the final vote counts
+* Updates the corresponding books in Google Sheets
+* Marks books as used in the current cycle
+
+### 3. Cycle Management
+
+The bot ensures all books get exposure before repeating selections.
+
+Rules:
+
+* Books are selected until all books have participated in a voting cycle
+* Once all books have been used, a new cycle begins
+* Books with higher rankings receive higher priority in future rounds
+* Vote totals accumulate across cycles
+
+### 4. Rankings (`/top`)
+
+The bot:
+
+* Sorts books by total votes
+* Displays the Top 5 books
+* Updates rankings automatically after each completed poll
+
+---
 
 ## Running the Bot
 
-### Locally
+### Run Locally
+
 ```bash
 python main.py
 ```
 
-### With Docker
+### Run with Docker
+
 ```bash
 docker-compose up
 ```
 
-The bot runs continuously and:
-- Listens for `/voting` commands
-- Checks for poll completions every minute
-- Updates Google Sheet with results
-- Responds to `/top` queries
+The bot will:
+
+* Listen for `/voting` commands
+* Monitor active polls
+* Process completed polls
+* Update Google Sheets
+* Respond to `/top` requests
+
+---
 
 ## Project Structure
 
-- `bot.py` - Main bot logic and handlers
-- `main.py` - Entry point
-- `config.py` - Configuration loading
-- `sheets.py` - Google Sheets integration
-- `poll_manager.py` - Poll tracking database
-- `ranking.py` - Ranking calculations
-- `requirements.txt` - Python dependencies
-- `schema.md` - Google Sheet schema
+```text
+bot.py            # Telegram handlers and commands
+main.py           # Application entry point
+config.py         # Environment configuration
+sheets.py         # Google Sheets integration
+poll_manager.py   # SQLite poll management
+ranking.py        # Ranking calculations
+requirements.txt  # Python dependencies
+polls.db          # SQLite database
+```
+
+---
 
 ## Database
 
-The bot uses SQLite (`polls.db`) to track:
-- Poll IDs
-- Associated books
-- Creation/expiration times
-- Poll status
+The bot uses SQLite (`polls.db`) to store:
 
-## Notes
+* Poll IDs
+* Associated books
+* Chat IDs
+* Creation timestamps
+* Expiration timestamps
+* Poll status
 
-- Votes are accumulated across multiple cycles
-- Books reset when all have been voted
-- The bot checks for poll results every minute
-- Poll results update Google Sheets automatically
-- Top 5 is calculated from total accumulated votes
+This allows the bot to recover poll information after a restart.
+
+---
 
 ## Troubleshooting
 
-**Bot not responding?**
-- Check BOT_TOKEN in .env
-- Verify bot is running: `python main.py`
-- Check logs for errors
+### Bot Is Not Responding
 
-**Votes not updating?**
-- Ensure Google Sheets API is enabled
-- Verify service account has sheet access
-- Check GOOGLE_CREDS_FILE path
-- Review bot logs for API errors
+Check:
 
-**Polls not created?**
-- Ensure CHAT_ID is correct
-- Check spreadsheet has books
-- Verify columns match schema.md
+* BOT_TOKEN is correct
+* The bot is running:
+
+```bash
+python main.py
+```
+
+* Logs do not contain errors
+
+### Votes Are Not Updating
+
+Check:
+
+* Google Sheets API is enabled
+* Service Account has access to the spreadsheet
+* GOOGLE_CREDS_FILE path is correct
+* Application logs for API errors
+
+Important:
+
+If nobody votes in a poll, Telegram may not send vote updates, and all books in that poll may remain unchanged.
+
+### Polls Are Not Created
+
+Check:
+
+* CHAT_ID is correct
+* The spreadsheet contains eligible books
+* Column names match the required schema
+
+### Google Sheets Updates Fail
+
+Check:
+
+* Spreadsheet permissions
+* Service Account email access
+* Credentials file validity
+* Internet connectivity
+
+---
 
 ## License
 
-Project for Brodsky Book Club
+This project was created for the "Dead poets society" and is intended for educational and community use.

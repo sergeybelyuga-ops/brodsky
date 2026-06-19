@@ -6,13 +6,10 @@ import logging
 
 from config import BOT_TOKEN, POLL_DURATION, BOOKS_PER_POLL
 from ranking import top5
-from sheets import get_unread_books, update_votes, mark_book_as_used
+from sheets import get_unread_books
 from poll_manager import (
     init_db,
     create_poll,
-    close_poll,
-    get_poll_info,
-    mark_poll_processed,
     get_active_polls,
     process_final_poll,
     save_poll_vote
@@ -55,13 +52,20 @@ async def cmd_voting(msg: Message):
             opt[:100] if len(opt) > 100 else opt
             for opt in poll_options
         ]
+        
+        # For the 2nd and other cycles, don't allow multiple answers, so voting will be more fair.
+        current_cycle = min((int(b.get('Cycles', 0) or 0) for b in books), default=0)
+        if current_cycle == 0:
+            multiple_answers=True
+        else:
+            multiple_answers=False
 
         poll = await bot.send_poll(
             chat_id=msg.chat.id,
             question="📚 Что бы ты почитал?",
             options=poll_options,
             is_anonymous=False,
-            allows_multiple_answers=True,
+            allows_multiple_answers=multiple_answers,
             open_period=POLL_DURATION
         )
 
@@ -136,16 +140,7 @@ async def poll_watcher():
                     continue
 
                 try:
-
                     await process_final_poll(poll_list["poll_id"])
-
-#                    await bot.send_message(
-#                        chat_id=chat_id,
-#                        text=(
-#                            "✅ Голосование завершено! "
-#                            "Голоса добавлены в рейтинг."
-#                        )
-#                    )
 
                 except Exception as e:
                     logger.exception(
@@ -202,9 +197,7 @@ import asyncio
 from datetime import datetime
 
 from poll_manager import (
-    get_active_polls,
-    close_poll,
-    mark_poll_processed
+    get_active_polls
 )
 
 

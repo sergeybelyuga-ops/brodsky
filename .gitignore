@@ -1,7 +1,6 @@
-/.env
-/brodsky-498313-541be19ee54f.json
+/.env*
+/*.json
 /config.py
 /polls.db
-/schema.md
 /venv
 /__pycache__
