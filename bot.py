@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from config import BOT_TOKEN, POLL_DURATION, BOOKS_PER_POLL, CHAT_ID
 from ranking import top5
-from sheets import get_all_books
+from sheets import get_all_books, get_book_club_stats, SheetStatsError
 from poll_manager import (
     init_db,
     create_poll,
@@ -211,6 +211,7 @@ async def cmd_start(msg: Message):
         "📖 Book Club Bot - Brodsky\n\n"
         "Helps to simplify choose of the next book to read in your club. Runs once a day and save book ratings\n\n"
         "/voting - Create voting poll\n"
+        "/stat - Show book club statistics\n"
         "/top - Show top 5 rated books\n"
         "\n"
         "You can automate poll creation:\n"
@@ -343,10 +344,38 @@ async def cmd_top(msg: Message):
     await msg.answer(text)
 
 
+@dp.message(Command("stat"))
+async def cmd_stat(msg: Message):
+    try:
+        stats = get_book_club_stats()
+    except SheetStatsError as exc:
+        await msg.answer(f"❌ Unable to calculate statistics: {exc}")
+        return
+    except Exception:
+        logger.exception("Unexpected error calculating statistics")
+        await msg.answer(
+            "❌ Unable to calculate statistics due to an unexpected error"
+        )
+        return
+
+    await msg.answer(
+        "📚 Book Club Statistics\n\n"
+        f"📖 Total books: {stats['total_books']}\n"
+        f"✅ Books completed: {stats['completed_books']}\n\n"
+        "🗳️ First voting cycle\n"
+        f"• Already voted: {stats['first_cycle_voted']}\n"
+        f"• Waiting for first vote: {stats['first_cycle_waiting']}\n\n"
+        f"🗳️ Current voting cycle #{stats['current_cycle_number']}\n"
+        f"• Already voted: {stats['current_cycle_voted']}\n"
+        f"• Waiting for vote: {stats['current_cycle_waiting']}"
+    )
+
+
 @dp.message(Command("help"))
 async def cmd_help(msg: Message):
     await msg.answer(
         "/voting - Create voting poll\n"
+        "/stat - Show book club statistics\n"
         "/top - Show top 5 rated books\n\n"
         "/autoschedule YYYY-MM-DD HH:MM INTERVAL\n"
         "  Example: /autoschedule 2026-07-01 20:00 60m\n"

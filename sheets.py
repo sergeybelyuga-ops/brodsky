@@ -6,6 +6,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+class SheetStatsError(Exception):
+    pass
+
 def sheet():
     try:
         creds = Credentials.from_service_account_file(
@@ -21,6 +25,119 @@ def sheet():
 def get_all_books():
     """Get all books from the sheet"""
     return sheet().get_all_records()
+
+
+def _parse_cycle_value(value):
+    if value is None:
+        return 0
+
+    raw_value = str(value).strip()
+    if raw_value == '':
+        return 0
+
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise SheetStatsError(
+            f"Invalid cycle value: {value}"
+        ) from exc
+
+
+def _is_completed_book(book):
+    completed_value = book.get('Completed')
+    if completed_value is not None:
+        normalized = str(completed_value).strip().lower()
+        return normalized in {'true', '1', 'yes'}
+
+    status_value = str(book.get('Status', '')).strip().lower()
+    return status_value == 'completed'
+
+
+def _has_votes_value(book):
+    votes_value = book.get('Votes')
+    return votes_value is not None and str(votes_value).strip() != ''
+
+
+def _build_cycle_stats(books, cycle_number):
+    already_voted = 0
+
+    for book in books:
+        cycle_value = book.get('Cycles')
+        if cycle_value is None:
+            continue
+
+        cycle_value = _parse_cycle_value(book.get('Cycles'))
+        if cycle_value <= cycle_number:
+            continue
+        
+        already_voted += 1
+
+    return {
+        'cycle_number': cycle_number,
+        'already_voted': already_voted,
+    }
+
+
+def get_book_club_stats():
+    """Return aggregate statistics for the book club."""
+    try:
+        ws = sheet()
+        headers = [str(header).strip() for header in ws.row_values(1)]
+
+        if not headers:
+            raise SheetStatsError("Spreadsheet is empty")
+
+        required_columns = {'Votes', 'Cycles'}
+        missing_columns = [
+            column for column in required_columns
+            if column not in headers
+        ]
+
+        if 'Completed' not in headers and 'Status' not in headers:
+            missing_columns.append('Completed or Status')
+
+        if missing_columns:
+            raise SheetStatsError(
+                "Missing required columns: " + ", ".join(missing_columns)
+            )
+
+        books = ws.get_all_records()
+        total_books = len(books)
+
+        if total_books == 0:
+            raise SheetStatsError("Spreadsheet does not contain any books")
+
+        completed_books = 0
+        cycle_values = []
+
+        for book in books:
+            if _is_completed_book(book):
+                completed_books += 1
+
+            cycle_value = _parse_cycle_value(book.get('Cycles'))
+            cycle_values.append(cycle_value)
+
+        current_cycle_number = max(cycle_values, default=0)
+        first_cycle_stats = _build_cycle_stats(books, 0)
+        current_cycle_stats = _build_cycle_stats(books, current_cycle_number-1)
+
+        return {
+            'total_books': total_books,
+            'completed_books': completed_books,
+            'current_cycle_number': current_cycle_number,
+            'first_cycle_voted': first_cycle_stats['already_voted'],
+            'first_cycle_waiting': total_books - first_cycle_stats['already_voted'],
+            'current_cycle_voted': current_cycle_stats['already_voted'],
+            'current_cycle_waiting': total_books - current_cycle_stats['already_voted'],
+        }
+
+    except SheetStatsError:
+        raise
+    except Exception as exc:
+        logger.error("Error calculating book club stats", exc_info=True)
+        raise SheetStatsError(
+            "Failed to read statistics from Google Sheets"
+        ) from exc
 
 def get_unread_books(count):
     """Select random unread books for the poll, prioritizing books that have not been voted in the current cycle."""

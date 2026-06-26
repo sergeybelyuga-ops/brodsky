@@ -21,6 +21,7 @@ To better identify the books that interest readers the most, the second and subs
 ### ✨ Helps Choose the Next Book to Read
 
 * Displays the Top 5 highest-ranked books
+* Shows overall club statistics directly in Telegram
 * Completed books can be marked as **Completed** in Google Sheets and excluded from future voting
 
 ---
@@ -153,6 +154,18 @@ Automatic poll creation: Disabled
 ### `/top`
 
 Displays the 5 highest-ranked books based on accumulated votes.
+
+### `/stat`
+
+Displays a concise summary of the current club state.
+
+What it includes:
+
+* Total books in the library
+* Number of completed books
+* First-cycle progress for books with `Cycles = 0`
+* How many first-cycle books have already appeared in a poll
+* How many first-cycle books are still waiting for their first poll
 
 ### `/help`
 
