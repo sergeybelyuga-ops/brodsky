@@ -84,6 +84,22 @@ async def create_poll(
             created_at,
             expires_at
         ))
+
+        await db.executemany(
+            '''
+            INSERT OR REPLACE INTO poll_votes (
+                poll_id,
+                option_id,
+                votes_count
+            )
+            VALUES (?, ?, ?)
+            ''',
+            [
+                (str(poll_id), option_id, 0)
+                for option_id, _ in enumerate(books)
+            ]
+        )
+
         await db.commit()
 
 
