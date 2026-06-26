@@ -98,6 +98,58 @@ What happens:
 * Automatically processes results when the poll expires
 * Updates vote counts in Google Sheets
 
+### `/autoschedule YYYY-MM-DD HH:MM INTERVAL_HOURS`
+
+Enables automatic recurring poll creation.
+
+What happens:
+
+* Saves scheduler configuration in SQLite
+* Creates the first automatic poll at the configured start date/time
+* Creates the next polls every `INTERVAL_HOURS`
+* Uses the same interval as poll lifetime
+
+Example:
+
+```text
+/autoschedule 2026-07-01 20:00 72
+```
+
+### `/autostop`
+
+Disables automatic poll creation.
+
+What happens:
+
+* Stops future automatic poll creation
+* Keeps existing active polls running normally
+* Preserves scheduler configuration in SQLite
+
+### `/autostatus`
+
+Shows automatic scheduler status.
+
+Output examples:
+
+```text
+Automatic poll creation: Enabled
+
+Next poll:
+2026-07-04 20:00
+
+Interval:
+72 hours
+
+Poll lifetime:
+72 hours
+```
+
+or
+
+```text
+Automatic poll creation: Disabled
+```
+
 ### `/top`
 
 Displays the 5 highest-ranked books based on accumulated votes.
@@ -196,6 +248,7 @@ The bot uses SQLite (`polls.db`) to store:
 * Creation timestamps
 * Expiration timestamps
 * Poll status
+* Automatic poll scheduler state (`poll_schedule` table)
 
 This allows the bot to recover poll information after a restart.
 

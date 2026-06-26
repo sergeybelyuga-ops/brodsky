@@ -35,11 +35,38 @@ async def init_db():
                 PRIMARY KEY (poll_id, option_id)
         )
         ''')
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS poll_schedule (
+                id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL,
+                next_run DATETIME,
+                interval_hours INTEGER NOT NULL,
+                interval_seconds INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME
+            )
+        ''')
+
+        # Backward-compatible migration for existing databases.
+        async with db.execute("PRAGMA table_info(poll_schedule)") as cursor:
+            columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+        if "interval_seconds" not in column_names:
+            await db.execute(
+                "ALTER TABLE poll_schedule "
+                "ADD COLUMN interval_seconds INTEGER NOT NULL DEFAULT 0"
+            )
         await db.commit()
 
-async def create_poll(poll_id, message_id, chat_id, books):
+async def create_poll(
+    poll_id,
+    message_id,
+    chat_id,
+    books,
+    duration_seconds=None
+):
     created_at = datetime.now()
-    expires_at = created_at + timedelta(seconds=POLL_DURATION + 30)
+    poll_duration = duration_seconds if duration_seconds is not None else POLL_DURATION
+    expires_at = created_at + timedelta(seconds=poll_duration + 30)
     books_str = '|'.join([b['Title'] for b in books])
 
     async with aiosqlite.connect(DB_PATH) as db:
@@ -57,6 +84,73 @@ async def create_poll(poll_id, message_id, chat_id, books):
             created_at,
             expires_at
         ))
+        await db.commit()
+
+
+async def upsert_poll_schedule(enabled, next_run, interval_seconds):
+    created_at = datetime.now()
+    interval_hours = int(interval_seconds // 3600)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            INSERT INTO poll_schedule (
+                id, enabled, next_run, interval_hours, interval_seconds, created_at
+            )
+            VALUES (1, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                enabled=excluded.enabled,
+                next_run=excluded.next_run,
+                interval_hours=excluded.interval_hours,
+                interval_seconds=excluded.interval_seconds
+            ''',
+            (
+                1 if enabled else 0,
+                next_run,
+                interval_hours,
+                interval_seconds,
+                created_at
+            )
+        )
+        await db.commit()
+
+
+async def get_poll_schedule():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            'SELECT * FROM poll_schedule WHERE id = 1'
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        return dict(row)
+
+
+async def disable_poll_schedule():
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            UPDATE poll_schedule
+            SET enabled = 0
+            WHERE id = 1
+            '''
+        )
+        await db.commit()
+
+
+async def set_poll_schedule_next_run(next_run):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            '''
+            UPDATE poll_schedule
+            SET next_run = ?
+            WHERE id = 1
+            ''',
+            (next_run,)
+        )
         await db.commit()
 
 async def get_active_polls():
