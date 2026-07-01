@@ -1,5 +1,6 @@
 # Poll manager for Telegram voting
 import aiosqlite
+import os
 from datetime import datetime, timedelta
 from config import POLL_DURATION
 from sheets import update_votes
@@ -8,7 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = "polls.db"
+DB_PATH = os.getenv("POLL_DB_PATH", "polls.db")
 
 
 def serialize_datetime(value):
@@ -49,6 +50,10 @@ def parse_db_datetime(value):
     raise ValueError(f"Unsupported datetime value from database: {value}")
 
 async def init_db():
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
             CREATE TABLE IF NOT EXISTS polls (

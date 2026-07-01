@@ -282,7 +282,8 @@ async def cmd_autoschedule(msg: Message):
         )
         return
 
-    if start_dt <= datetime.now():
+    now = datetime.now()
+    if start_dt < now:
         await msg.answer(
             "❌ Start date must be in the future.\n\n"
             f"{AUTOSCHEDULE_USAGE}"
@@ -296,7 +297,6 @@ async def cmd_autoschedule(msg: Message):
         chat_id=msg.chat.id,
     )
 
-    now = datetime.now()
     logger.info(
         "Scheduler setup: "
         f"system_time={format_scheduler_datetime(now)}, "

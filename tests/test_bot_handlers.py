@@ -187,3 +187,31 @@ async def test_execute_auto_schedule_disables_on_chat_not_found(monkeypatch):
     await bot.execute_auto_schedule_if_due()
 
     assert disable_calls == [True]
+
+
+@pytest.mark.asyncio
+async def test_cmd_autoschedule_rejects_past_start(monkeypatch):
+    msg = FakeMessage(text="/autoschedule 2026-07-01 10:00 5m", chat_id=-999)
+    captured = {}
+
+    class FakeDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 7, 1, 10, 0, 30)
+
+    async def fake_upsert_poll_schedule(enabled, next_run, interval_seconds, chat_id=None):
+        captured["called"] = True
+
+    monkeypatch.setattr(bot, "datetime", FakeDateTime)
+    monkeypatch.setattr(
+        bot,
+        "parse_autoschedule_args",
+        lambda _text: (datetime(2026, 7, 1, 10, 0, 0), 300),
+    )
+    monkeypatch.setattr(bot, "upsert_poll_schedule", fake_upsert_poll_schedule)
+
+    await bot.cmd_autoschedule(msg)
+
+    assert captured == {}
+    assert len(msg.answers) == 1
+    assert "Start date must be in the future" in msg.answers[0]
