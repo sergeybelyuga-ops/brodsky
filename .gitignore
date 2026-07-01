@@ -3,4 +3,9 @@
 /config.py
 /polls.db
 /venv
+/.venv
+/myenv
 /__pycache__
+**/__pycache__/
+*.pyc
+/.pytest_cache

@@ -15,6 +15,7 @@ from poll_manager import (
     create_poll,
     get_active_polls,
     process_final_poll,
+    parse_db_datetime,
     save_poll_vote,
     upsert_poll_schedule,
     get_poll_schedule,
@@ -311,7 +312,7 @@ async def cmd_autostatus(msg: Message):
         return
 
     next_run_value = schedule.get("next_run")
-    next_run = datetime.fromisoformat(str(next_run_value))
+    next_run = parse_db_datetime(next_run_value)
     interval_seconds = get_schedule_interval_seconds(schedule)
 
     await msg.answer(
@@ -399,7 +400,7 @@ async def execute_auto_schedule_if_due():
         return
 
     now = datetime.now()
-    next_run = datetime.fromisoformat(str(next_run_value))
+    next_run = parse_db_datetime(next_run_value)
     interval_seconds = get_schedule_interval_seconds(schedule)
 
     logger.info(
@@ -464,9 +465,7 @@ async def poll_watcher():
 
             for poll_list in active_polls:
 
-                expires_at = datetime.fromisoformat(
-                    str(poll_list["expires_at"])
-                )
+                expires_at = parse_db_datetime(poll_list["expires_at"])
 
                 if now < expires_at:
                     continue

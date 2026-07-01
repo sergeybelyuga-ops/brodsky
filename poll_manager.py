@@ -10,6 +10,44 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = "polls.db"
 
+
+def serialize_datetime(value):
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        return value.isoformat(sep=" ", timespec="seconds")
+
+    return str(value).strip()
+
+
+def parse_db_datetime(value):
+    if value is None or isinstance(value, datetime):
+        return value
+
+    raw_value = str(value).strip()
+    if not raw_value:
+        return None
+
+    normalized_value = raw_value.replace("T", " ")
+    if normalized_value.endswith("Z"):
+        normalized_value = normalized_value[:-1] + "+00:00"
+
+    try:
+        return datetime.fromisoformat(normalized_value)
+    except ValueError:
+        for date_format in (
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S.%f",
+        ):
+            try:
+                return datetime.strptime(normalized_value, date_format)
+            except ValueError:
+                continue
+
+    raise ValueError(f"Unsupported datetime value from database: {value}")
+
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute('''
@@ -81,8 +119,8 @@ async def create_poll(
             message_id,
             chat_id,
             books_str,
-            created_at,
-            expires_at
+            serialize_datetime(created_at),
+            serialize_datetime(expires_at)
         ))
 
         await db.executemany(
@@ -122,10 +160,10 @@ async def upsert_poll_schedule(enabled, next_run, interval_seconds):
             ''',
             (
                 1 if enabled else 0,
-                next_run,
+                serialize_datetime(next_run),
                 interval_hours,
                 interval_seconds,
-                created_at
+                serialize_datetime(created_at)
             )
         )
         await db.commit()
@@ -142,7 +180,10 @@ async def get_poll_schedule():
         if not row:
             return None
 
-        return dict(row)
+        schedule = dict(row)
+        schedule["next_run"] = parse_db_datetime(schedule.get("next_run"))
+        schedule["created_at"] = parse_db_datetime(schedule.get("created_at"))
+        return schedule
 
 
 async def disable_poll_schedule():
@@ -165,7 +206,7 @@ async def set_poll_schedule_next_run(next_run):
             SET next_run = ?
             WHERE id = 1
             ''',
-            (next_run,)
+            (serialize_datetime(next_run),)
         )
         await db.commit()
 
@@ -176,7 +217,15 @@ async def get_active_polls():
             'SELECT * FROM polls WHERE status = "active"'
         ) as cursor:
             rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+
+        polls = []
+        for row in rows:
+            poll = dict(row)
+            poll["created_at"] = parse_db_datetime(poll.get("created_at"))
+            poll["expires_at"] = parse_db_datetime(poll.get("expires_at"))
+            polls.append(poll)
+
+        return polls
 
 async def close_poll(poll_id):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -206,7 +255,10 @@ async def get_poll_info(poll_id):
         if not row:
             return None
 
-        return dict(row)
+        poll = dict(row)
+        poll["created_at"] = parse_db_datetime(poll.get("created_at"))
+        poll["expires_at"] = parse_db_datetime(poll.get("expires_at"))
+        return poll
 
 async def save_poll_vote(
     poll_id,
@@ -264,9 +316,9 @@ async def process_final_poll(poll_id):
             )
             return
 
-        if poll_info["status"] == "processed":
+        if poll_info["status"] != "active":
             logger.info(
-                f"Poll {poll_id} already processed"
+                f"Poll {poll_id} already finalized with status={poll_info['status']}"
             )
             return
 
@@ -294,13 +346,8 @@ async def process_final_poll(poll_id):
                 votes_count
             )
 
-        await mark_poll_processed(
-            poll_id
-        )
-
-        await close_poll(
-            poll_id
-        )
+        await close_poll(poll_id)
+        await mark_poll_processed(poll_id)
 
         logger.info(
             f"Poll {poll_id} processed"
