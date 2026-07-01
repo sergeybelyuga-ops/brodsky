@@ -57,6 +57,20 @@ def test_get_schedule_interval_seconds_fallback_to_hours():
     assert bot.get_schedule_interval_seconds(schedule) == 10800
 
 
+def test_get_schedule_chat_id_prefers_schedule_value(monkeypatch):
+    monkeypatch.setattr(bot, "CHAT_ID", -111)
+
+    assert bot.get_schedule_chat_id({"chat_id": -222}) == -222
+
+
+def test_get_schedule_chat_id_fallbacks_to_configured(monkeypatch):
+    monkeypatch.setattr(bot, "CHAT_ID", -333)
+
+    assert bot.get_schedule_chat_id({"chat_id": None}) == -333
+    assert bot.get_schedule_chat_id({"chat_id": ""}) == -333
+    assert bot.get_schedule_chat_id({"chat_id": "invalid"}) == -333
+
+
 def test_select_books_for_poll_first_cycle_excludes_completed_and_active(monkeypatch):
     books = [
         {

@@ -80,6 +80,7 @@ async def init_db():
                 next_run DATETIME,
                 interval_hours INTEGER NOT NULL,
                 interval_seconds INTEGER NOT NULL DEFAULT 0,
+                chat_id INTEGER,
                 created_at DATETIME
             )
         ''')
@@ -92,6 +93,11 @@ async def init_db():
             await db.execute(
                 "ALTER TABLE poll_schedule "
                 "ADD COLUMN interval_seconds INTEGER NOT NULL DEFAULT 0"
+            )
+        if "chat_id" not in column_names:
+            await db.execute(
+                "ALTER TABLE poll_schedule "
+                "ADD COLUMN chat_id INTEGER"
             )
         await db.commit()
 
@@ -141,7 +147,7 @@ async def create_poll(
         await db.commit()
 
 
-async def upsert_poll_schedule(enabled, next_run, interval_seconds):
+async def upsert_poll_schedule(enabled, next_run, interval_seconds, chat_id=None):
     created_at = datetime.now()
     interval_hours = int(interval_seconds // 3600)
 
@@ -149,20 +155,22 @@ async def upsert_poll_schedule(enabled, next_run, interval_seconds):
         await db.execute(
             '''
             INSERT INTO poll_schedule (
-                id, enabled, next_run, interval_hours, interval_seconds, created_at
+                id, enabled, next_run, interval_hours, interval_seconds, chat_id, created_at
             )
-            VALUES (1, ?, ?, ?, ?, ?)
+            VALUES (1, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 enabled=excluded.enabled,
                 next_run=excluded.next_run,
                 interval_hours=excluded.interval_hours,
-                interval_seconds=excluded.interval_seconds
+                interval_seconds=excluded.interval_seconds,
+                chat_id=excluded.chat_id
             ''',
             (
                 1 if enabled else 0,
                 serialize_datetime(next_run),
                 interval_hours,
                 interval_seconds,
+                chat_id,
                 serialize_datetime(created_at)
             )
         )
@@ -322,6 +330,12 @@ async def process_final_poll(poll_id):
             )
             return
 
+        if poll_info["status"] != "active":
+            logger.info(
+                f"Poll {poll_id} already finalized with status={poll_info['status']}"
+            )
+            return
+
         books = poll_info["books"].split("|")
         chat_id = poll_info["chat_id"]
 
@@ -346,11 +360,11 @@ async def process_final_poll(poll_id):
                 votes_count
             )
 
-        await mark_poll_processed(
+        await close_poll(
             poll_id
         )
 
-        await close_poll(
+        await mark_poll_processed(
             poll_id
         )
 

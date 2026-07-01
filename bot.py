@@ -1,5 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, Poll
 import asyncio
 import logging
@@ -207,6 +208,22 @@ def get_schedule_interval_seconds(schedule):
     return interval_hours * 3600
 
 
+def get_schedule_chat_id(schedule):
+    chat_id = schedule.get("chat_id")
+    if chat_id is None or str(chat_id).strip() == "":
+        return CHAT_ID
+
+    try:
+        return int(chat_id)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Scheduler has invalid chat_id=%s, fallback to CHAT_ID=%s",
+            chat_id,
+            CHAT_ID,
+        )
+        return CHAT_ID
+
+
 def is_scheduler_admin(msg: Message):
     return True #msg.chat.id == CHAT_ID
 
@@ -275,7 +292,8 @@ async def cmd_autoschedule(msg: Message):
     await upsert_poll_schedule(
         enabled=True,
         next_run=start_dt,
-        interval_seconds=interval_seconds
+        interval_seconds=interval_seconds,
+        chat_id=msg.chat.id,
     )
 
     now = datetime.now()
@@ -327,6 +345,7 @@ async def cmd_autostatus(msg: Message):
     next_run_value = schedule.get("next_run")
     next_run = parse_db_datetime(next_run_value)
     interval_seconds = get_schedule_interval_seconds(schedule)
+    schedule_chat_id = get_schedule_chat_id(schedule)
 
     await msg.answer(
         "Automatic poll creation: Enabled\n\n"
@@ -415,6 +434,7 @@ async def execute_auto_schedule_if_due():
     now = datetime.now()
     next_run = parse_db_datetime(next_run_value)
     interval_seconds = get_schedule_interval_seconds(schedule)
+    schedule_chat_id = get_schedule_chat_id(schedule)
 
     logger.info(
         "Scheduler execution check: "
@@ -433,7 +453,7 @@ async def execute_auto_schedule_if_due():
 
     try:
         poll = await create_voting_poll(
-            chat_id=CHAT_ID,
+            chat_id=schedule_chat_id,
             duration_seconds=interval_seconds
         )
 
@@ -457,6 +477,17 @@ async def execute_auto_schedule_if_due():
             f"{upcoming_next_run.isoformat()}"
         )
 
+    except TelegramBadRequest as exc:
+        error_text = str(exc).lower()
+        if "chat not found" in error_text:
+            logger.error(
+                "Scheduler disabled: target chat not found (chat_id=%s)",
+                schedule_chat_id,
+            )
+            await disable_poll_schedule()
+            return
+
+        logger.exception("Error during automatic poll creation")
     except Exception:
         logger.exception("Error during automatic poll creation")
 

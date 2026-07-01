@@ -144,3 +144,46 @@ async def test_cmd_autostatus_enabled(monkeypatch):
     assert "Automatic poll creation: Enabled" in msg.answers[0]
     assert "2026-07-05 20:00" in msg.answers[0]
     assert "2h" in msg.answers[0]
+
+
+@pytest.mark.asyncio
+async def test_execute_auto_schedule_disables_on_chat_not_found(monkeypatch):
+    now = datetime.now()
+    disable_calls = []
+
+    class FakeTelegramBadRequest(Exception):
+        pass
+
+    async def fake_get_poll_schedule():
+        return {
+            "enabled": 1,
+            "next_run": now,
+            "interval_seconds": 7200,
+            "interval_hours": 0,
+            "chat_id": -123456,
+        }
+
+    async def fake_create_voting_poll(chat_id, duration_seconds):
+        raise FakeTelegramBadRequest(
+            "Telegram server says - Bad Request: chat not found"
+        )
+
+    async def fake_disable_poll_schedule():
+        disable_calls.append(True)
+
+    async def fake_set_poll_schedule_next_run(_):
+        raise AssertionError("next_run must not be updated on chat-not-found")
+
+    monkeypatch.setattr(bot, "TelegramBadRequest", FakeTelegramBadRequest)
+    monkeypatch.setattr(bot, "get_poll_schedule", fake_get_poll_schedule)
+    monkeypatch.setattr(bot, "create_voting_poll", fake_create_voting_poll)
+    monkeypatch.setattr(bot, "disable_poll_schedule", fake_disable_poll_schedule)
+    monkeypatch.setattr(
+        bot,
+        "set_poll_schedule_next_run",
+        fake_set_poll_schedule_next_run,
+    )
+
+    await bot.execute_auto_schedule_if_due()
+
+    assert disable_calls == [True]

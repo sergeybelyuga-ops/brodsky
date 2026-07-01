@@ -106,6 +106,7 @@ async def test_schedule_roundtrip(isolated_db):
         enabled=True,
         next_run=next_run,
         interval_seconds=7200,
+        chat_id=-100100,
     )
 
     schedule = await poll_manager.get_poll_schedule()
@@ -113,4 +114,5 @@ async def test_schedule_roundtrip(isolated_db):
     assert schedule is not None
     assert schedule["enabled"] == 1
     assert schedule["interval_seconds"] == 7200
+    assert schedule["chat_id"] == -100100
     assert schedule["next_run"].replace(microsecond=0) == next_run.replace(microsecond=0)
