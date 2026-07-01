@@ -316,9 +316,9 @@ async def process_final_poll(poll_id):
             )
             return
 
-        if poll_info["status"] != "active":
+        if poll_info["status"] == "processed":
             logger.info(
-                f"Poll {poll_id} already finalized with status={poll_info['status']}"
+                f"Poll {poll_id} already processed"
             )
             return
 
@@ -346,8 +346,13 @@ async def process_final_poll(poll_id):
                 votes_count
             )
 
-        await close_poll(poll_id)
-        await mark_poll_processed(poll_id)
+        await mark_poll_processed(
+            poll_id
+        )
+
+        await close_poll(
+            poll_id
+        )
 
         logger.info(
             f"Poll {poll_id} processed"

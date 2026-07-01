@@ -39,6 +39,11 @@ AUTOSCHEDULE_USAGE = (
 )
 
 
+def format_scheduler_datetime(value):
+    local_value = value.astimezone()
+    return local_value.strftime("%Y-%m-%d %H:%M:%S %z")
+
+
 async def create_voting_poll(chat_id, duration_seconds):
     async with poll_creation_lock:
         active_polls = await get_active_polls()
@@ -273,6 +278,14 @@ async def cmd_autoschedule(msg: Message):
         interval_seconds=interval_seconds
     )
 
+    now = datetime.now()
+    logger.info(
+        "Scheduler setup: "
+        f"system_time={format_scheduler_datetime(now)}, "
+        f"scheduled_time={format_scheduler_datetime(start_dt)}, "
+        f"interval_seconds={interval_seconds}"
+    )
+
     logger.info(
         "Scheduler enabled: "
         f"next_run={start_dt.isoformat()}, interval_seconds={interval_seconds}"
@@ -404,9 +417,9 @@ async def execute_auto_schedule_if_due():
     interval_seconds = get_schedule_interval_seconds(schedule)
 
     logger.info(
-        "Scheduler execution: "
-        f"now={now.isoformat()}, "
-        f"next_run={next_run.isoformat()}, "
+        "Scheduler execution check: "
+        f"system_time={format_scheduler_datetime(now)}, "
+        f"scheduled_time={format_scheduler_datetime(next_run)}, "
         f"interval_seconds={interval_seconds}"
     )
 

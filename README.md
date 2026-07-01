@@ -220,119 +220,20 @@ The bot:
 ```bash
 python main.py
 ```
----
 
-## Local Testing in WSL (Ubuntu)
-
-Use this before committing changes to verify core behavior locally.
-
-### 0. Bootstrap WSL environment from Windows (optional helper)
-
-```powershell
-.\scripts\bootstrap-wsl-tests.ps1 -Distro Ubuntu-24.04
-```
-
-If you need to recreate the virtual environment:
-
-```powershell
-.\scripts\bootstrap-wsl-tests.ps1 -Distro Ubuntu-24.04 -RecreateVenv
-```
-
-If Ubuntu asks for sudo password to install `python3-venv`:
-
-```powershell
-.\scripts\bootstrap-wsl-tests.ps1 -Distro Ubuntu-24.04 -InteractiveSudo
-```
-
-### 1. Create and activate virtual environment
+### Run with Docker
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+docker-compose up
 ```
 
-### 2. Prepare test environment profile
+The bot will:
 
-1. Copy `env.test.example` to `.env.test`
-2. Fill test-only values:
-	* Telegram test bot token
-	* Telegram test chat id
-	* Google test spreadsheet id
-	* Test credentials json file path
-
-The app supports selecting env file through `ENV_FILE`.
-
-### 3. Fast local checks (recommended before every commit)
-
-```bash
-ENV_FILE=.env.test pytest -m "not smoke"
-```
-
-Windows PowerShell helper:
-
-```powershell
-.\scripts\run-tests.ps1 -Suite fast -EnvFile .env.test
-```
-
-Windows -> WSL Ubuntu 24 helper:
-
-```powershell
-.\scripts\run-tests-wsl.ps1 -Suite fast -EnvFile .env.test -Distro Ubuntu-24.04
-```
-
-Tip: if WSL runner reports missing `.venv/bin/python`, run bootstrap helper first.
-
-### 4. SQLite + logic integration checks only
-
-```bash
-ENV_FILE=.env.test pytest -m "integration and not smoke"
-```
-
-Windows PowerShell helper:
-
-```powershell
-.\scripts\run-tests.ps1 -Suite integration -EnvFile .env.test
-```
-
-Windows -> WSL Ubuntu 24 helper:
-
-```powershell
-.\scripts\run-tests-wsl.ps1 -Suite integration -EnvFile .env.test -Distro Ubuntu-24.04
-```
-
-### 5. Real external smoke check (Telegram + Sheets test data)
-
-```bash
-RUN_LIVE_SMOKE=1 ENV_FILE=.env.test pytest -m smoke -s
-```
-
-Windows PowerShell helper:
-
-```powershell
-.\scripts\run-tests.ps1 -Suite smoke -EnvFile .env.test
-```
-
-Windows -> WSL Ubuntu 24 helper:
-
-```powershell
-.\scripts\run-tests-wsl.ps1 -Suite smoke -EnvFile .env.test -Distro Ubuntu-24.04
-```
-
-Optional override (not recommended):
-
-```bash
-ALLOW_PROD_SMOKE=1 RUN_LIVE_SMOKE=1 ENV_FILE=.env.test pytest -m smoke -s
-```
-
-Notes:
-
-* Smoke tests are skipped by default.
-* Smoke tests create a real poll in the configured test chat.
-* Use only test resources, never production chat/sheet.
-* By default smoke run is blocked unless `ENV_FILE` points to a test profile and credentials filename looks test-related.
-* `run-tests-wsl.ps1` fails fast if requested WSL distro does not exist.
-* On fresh Ubuntu WSL, install `python3-venv` once (interactive sudo) before bootstrap can create `.venv`.
+* Listen for `/voting` commands
+* Monitor active polls
+* Process completed polls
+* Update Google Sheets
+* Respond to `/top` requests
 
 ---
 
